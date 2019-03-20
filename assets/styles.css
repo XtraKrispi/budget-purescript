@@ -1,0 +1,11 @@
+.sort-col {
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.sort-col i {
+  width: 10px;
+  display: inline-block;
+  margin-left: 5px;
+}
