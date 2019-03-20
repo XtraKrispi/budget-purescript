@@ -5,6 +5,7 @@ import Prelude
 import Budget.Capability.LogMessages (class LogMessages)
 import Budget.Capability.Navigate (class Navigate)
 import Budget.Capability.Now (class Now)
+import Budget.Capability.Resource.Instance (class ManageInstance)
 import Budget.Capability.Resource.Template (class ManageTemplate)
 import Budget.Capability.SendNotification (class SendNotification)
 import Budget.Component.HTML.Navbar as Navbar
@@ -41,6 +42,7 @@ component
   => Navigate m
   => ManageTemplate m
   => SendNotification m
+  => ManageInstance m
   => H.Component HH.HTML Query Input Void m
 component = 
   H.parentComponent

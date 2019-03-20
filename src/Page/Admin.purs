@@ -9,8 +9,8 @@ import Budget.Capability.Resource.Template (class ManageTemplate, createTemplate
 import Budget.Capability.SendNotification (class SendNotification)
 import Budget.Capability.SendNotification as N
 import Budget.Component.HTML.Utils (formatCurrency)
-import Budget.Data.Common (Currency(..), unCurrency)
-import Budget.Data.Template (Frequency(..), StartDate(..), Template, TemplateWithKey, unStartDate)
+import Budget.Data.Common (Currency(..), StartDate(..), conversionDateFormat, unCurrency, unStartDate)
+import Budget.Data.Template (Frequency(..), Template, TemplateWithKey)
 import Budget.FFI.Confirm (confirm)
 import Data.Array (sortBy, filter)
 import Data.Date (Date, Month(..), canonicalDate)
@@ -365,9 +365,6 @@ dateFormat = (MonthFull:Placeholder " ":DayOfMonth:Placeholder ", ":YearFull:Nil
 
 prettySd :: StartDate -> String
 prettySd = format dateFormat <<< toDateTime <<< fromDate <<< unStartDate
-
-conversionDateFormat :: List FormatterCommand
-conversionDateFormat = (YearFull:Placeholder "-":MonthTwoDigits:Placeholder "-":DayOfMonthTwoDigits:Nil) 
 
 ds :: String -> Maybe StartDate
 ds = hush <<< ((<$>) (StartDate <<< date)) <<< unformat conversionDateFormat

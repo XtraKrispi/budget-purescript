@@ -8,11 +8,14 @@ import Budget.Api.Utils (decode, mkRequest)
 import Budget.Capability.LogMessages (class LogMessages)
 import Budget.Capability.Navigate (class Navigate)
 import Budget.Capability.Now (class Now)
+import Budget.Capability.Resource.Instance (class ManageInstance)
 import Budget.Capability.Resource.Template (class ManageTemplate)
 import Budget.Capability.SendNotification as N
+import Budget.Data.Instance (decodeInstances)
 import Budget.Data.Log as Log
 import Budget.Data.Route as Route
 import Budget.Data.Template (decodeTemplateWithKey, decodeTemplates, encodeTemplate)
+import Budget.FFI.Toastr as T
 import Control.Monad.Reader (class MonadAsk, ReaderT, ask, asks, runReaderT)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
@@ -25,7 +28,6 @@ import Effect.Console as Console
 import Effect.Now as Now
 import Routing.Duplex (print)
 import Routing.Hash (setHash)
-import Budget.FFI.Toastr as T
 import Type.Equality (class TypeEquals, from)
 
 type Env = 
@@ -100,6 +102,11 @@ instance manageTemplateAppM :: ManageTemplate AppM where
          
   deleteTemplate tId = 
     ((<$>) (const unit)) <$> mkRequest { endpoint: Template tId, method: Delete }
+
+instance manageInstanceAppM :: ManageInstance AppM where
+  getInstances e = 
+    mkRequest { endpoint: Instances e, method: Get }
+      >>= decode decodeInstances
 
 instance sendNotificationAppM :: N.SendNotification AppM where
   sendNotification (N.Notification msg level) = 

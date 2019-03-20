@@ -2,17 +2,20 @@ module Budget.Api.Endpoint where
 
 import Prelude hiding ((/))
 
+import Budget.Data.Common (EndDate, dateFromString, dateToString)
 import Budget.Data.Template (TemplateId)
+import Data.Date (Date)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Lens.Iso.Newtype (_Newtype)
-import Routing.Duplex (RouteDuplex', int, root, segment)
+import Routing.Duplex (RouteDuplex', int, root, segment, as)
 import Routing.Duplex.Generic (noArgs, sum)
 import Routing.Duplex.Generic.Syntax ((/))
 
 data Endpoint
   = Template TemplateId
-  | Templates 
+  | Templates
+  | Instances EndDate
 
 derive instance genericEndpoint :: Generic Endpoint _
 
@@ -23,7 +26,14 @@ endpointCodec :: RouteDuplex' Endpoint
 endpointCodec = root $ sum
   { "Template": "templates" / templateId
   , "Templates": "templates" / noArgs
+  , "Instances": "instances" / endDate
   }
 
 templateId :: RouteDuplex' TemplateId
 templateId = _Newtype (int segment)
+
+endDate :: RouteDuplex' EndDate
+endDate = _Newtype (date segment)
+
+date :: RouteDuplex' String -> RouteDuplex' Date
+date = as dateToString dateFromString

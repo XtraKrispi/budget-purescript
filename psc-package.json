@@ -21,6 +21,8 @@
     "remotedata",
     "routing",
     "routing-duplex",
-    "transformers"
+    "transformers",
+    "web-html",
+    "web-storage"
   ]
 }
