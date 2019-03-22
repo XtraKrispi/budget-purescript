@@ -2,9 +2,10 @@ module Budget.Data.Instance where
 
 import Prelude
 
-import Budget.Data.Common (Currency, dateFromString)
+import Budget.Data.Common (Currency, dateFromString, dateToString)
 import Budget.Data.Template (TemplateId(..))
-import Data.Argonaut (class DecodeJson, Json, decodeJson, fail, (.:))
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, fail, jsonEmptyObject, jsonNull, (.:))
+import Data.Argonaut.Encode.Combinators ((:=), (~>))
 import Data.Date (Date)
 import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
@@ -21,6 +22,8 @@ type Instance =
 
 data InstanceType = NotActioned | Completed | Skipped
 
+derive instance eqInstanceType :: Eq InstanceType
+derive instance ordInstanceType :: Ord InstanceType
 derive instance genericInstanceType :: Generic InstanceType _
 
 instance showInstanceType :: Show InstanceType where
@@ -34,6 +37,9 @@ instance decodeJsonInstanceType :: DecodeJson InstanceType where
       "Completed" -> pure Completed
       "Skipped" -> pure Skipped
       _ -> fail "Invalid instance type" 
+
+instance encodeJsonInstanceType :: EncodeJson InstanceType where
+  encodeJson = encodeJson <<< show
 
 decodeInstances :: Json -> Either String (Array Instance)
 decodeInstances json = decodeJson json >>= traverse decodeInstance
@@ -52,3 +58,15 @@ decodeInstance json = do
        , instanceType: t
        , date
        }
+
+encodeDate :: Date -> Json
+encodeDate = encodeJson <<< dateToString
+
+encodeInstance :: Instance -> Json
+encodeInstance { originalTemplateId, description, amount, instanceType, date } = 
+     "originalTemplateId" := originalTemplateId
+  ~> "description" := description
+  ~> "amount" := amount
+  ~> "type" := instanceType
+  ~> "date" := encodeDate date
+  ~> jsonEmptyObject

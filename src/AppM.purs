@@ -11,7 +11,7 @@ import Budget.Capability.Now (class Now)
 import Budget.Capability.Resource.Instance (class ManageInstance)
 import Budget.Capability.Resource.Template (class ManageTemplate)
 import Budget.Capability.SendNotification as N
-import Budget.Data.Instance (decodeInstances)
+import Budget.Data.Instance (decodeInstances, encodeInstance)
 import Budget.Data.Log as Log
 import Budget.Data.Route as Route
 import Budget.Data.Template (decodeTemplateWithKey, decodeTemplates, encodeTemplate)
@@ -107,6 +107,11 @@ instance manageInstanceAppM :: ManageInstance AppM where
   getInstances e = 
     mkRequest { endpoint: Instances e, method: Get }
       >>= decode decodeInstances
+  createInstance i = 
+    ((<$>) (const unit)) <$> mkRequest { endpoint: CreateInstance, method: Post $ Just $ encodeInstance i }
+  deleteInstance tId d = 
+    ((<$>) (const unit)) <$> mkRequest { endpoint: DeleteInstance tId d, method: Delete }
+  
 
 instance sendNotificationAppM :: N.SendNotification AppM where
   sendNotification (N.Notification msg level) = 

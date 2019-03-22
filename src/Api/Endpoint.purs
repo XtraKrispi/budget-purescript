@@ -16,6 +16,8 @@ data Endpoint
   = Template TemplateId
   | Templates
   | Instances EndDate
+  | CreateInstance
+  | DeleteInstance TemplateId Date
 
 derive instance genericEndpoint :: Generic Endpoint _
 
@@ -27,6 +29,8 @@ endpointCodec = root $ sum
   { "Template": "templates" / templateId
   , "Templates": "templates" / noArgs
   , "Instances": "instances" / endDate
+  , "CreateInstance": "instances" / noArgs
+  , "DeleteInstance":  "instances" / templateId / (date segment)
   }
 
 templateId :: RouteDuplex' TemplateId

@@ -8,7 +8,7 @@ import Budget.Capability.Now (class Now, nowDate)
 import Budget.Capability.Resource.Template (class ManageTemplate, createTemplate, deleteTemplate, getTemplates, updateTemplate)
 import Budget.Capability.SendNotification (class SendNotification)
 import Budget.Capability.SendNotification as N
-import Budget.Component.HTML.Utils (formatCurrency)
+import Budget.Component.HTML.Utils (actionIconButton, formatCurrency)
 import Budget.Data.Common (Currency(..), StartDate(..), conversionDateFormat, unCurrency, unStartDate)
 import Budget.Data.Template (Frequency(..), Template, TemplateWithKey)
 import Budget.FFI.Confirm (confirm)
@@ -279,8 +279,8 @@ templateItem false t =
   , HH.td_ [ HH.text $ freq t.frequency ]
   , HH.td_ [ HH.text $ prettySd t.startDate ]                         
   , HH.td_ [ HH.div [ HA.class_ (ClassName "actions") ] 
-             [ action "far fa-edit" (Edit t)
-             , action "far fa-trash-alt" (Delete t)
+             [ actionIconButton "far fa-edit" (Edit t)
+             , actionIconButton "far fa-trash-alt" (Delete t)
              ]
            ]
   ]
@@ -305,8 +305,8 @@ templateItem true t =
   , HH.td_ [ HH.text $ freq t.frequency ]
   , HH.td_ [ HH.text $ prettySd t.startDate ]                         
   , HH.td_ [ HH.div [ HA.class_ (ClassName "actions") ] 
-             [ action "far fa-check-circle" CommitEditing
-             , action "far fa-times-circle" CancelEditing
+             [ actionIconButton "far fa-check-circle" CommitEditing
+             , actionIconButton "far fa-times-circle" CancelEditing
              ]
            ]
   ]
@@ -371,13 +371,6 @@ ds = hush <<< ((<$>) (StartDate <<< date)) <<< unformat conversionDateFormat
 
 sd :: StartDate -> String
 sd = format conversionDateFormat <<< toDateTime <<< fromDate <<< unStartDate
-
-action :: forall i. String -> (Unit -> Query Unit) -> HH.HTML i (Query Unit)
-action c a = HH.button [ HA.classes [ Bootstrap.btn, Bootstrap.btnSm, Bootstrap.bgTransparent ]
-                     , HE.onClick (HE.input_ a)
-                     ] 
-                     [ HH.i [ HA.class_ (ClassName c) ] []
-                     ]
 
 initialNewTemplate :: Date -> Template ()
 initialNewTemplate date = 

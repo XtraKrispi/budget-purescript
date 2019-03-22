@@ -3,14 +3,14 @@ module Budget.Data.Template where
 import Prelude
 
 import Budget.Data.Common (Currency, StartDate)
-import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, fail, fromString, jsonEmptyObject, (.:))
+import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, encodeJson, fail, fromString, jsonEmptyObject, (.:))
 import Data.Argonaut.Core (Json)
+import Data.Argonaut.Encode.Combinators ((:=), (~>))
 import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
-import Data.Argonaut.Encode.Combinators ((:=), (~>))
 
 data Frequency = OneTime | BiWeekly | Monthly
 
@@ -56,6 +56,9 @@ instance showTemplateId :: Show TemplateId where
 
 instance decodeJsonTemplateId :: DecodeJson TemplateId where
   decodeJson json = TemplateId <$> decodeJson json
+
+instance encodeJsonTemplateId :: EncodeJson TemplateId where
+  encodeJson (TemplateId tId) = encodeJson tId
 
 decodeTemplates :: Json -> Either String (Array TemplateWithKey)
 decodeTemplates json = decodeJson json >>= traverse decodeTemplateWithKey
