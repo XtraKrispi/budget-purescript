@@ -1,6 +1,7 @@
 module Budget.Data.Common where
   
 import Prelude
+import Prelude
 
 import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, fromNumber, fromString)
 import Data.DateTime (Date, date)
@@ -33,6 +34,11 @@ instance decodeJsonCurrency :: DecodeJson Currency where
 instance encodeJsonCurrency :: EncodeJson Currency where
   encodeJson (Currency num) = fromNumber num
 
+instance semiRingCurrency :: Semiring Currency where
+  zero = Currency 0.0
+  one = Currency 1.0
+  add (Currency a) (Currency b) = Currency $ a + b
+  mul (Currency a) (Currency b) = Currency $ a * b
 
 newtype StartDate = StartDate Date
 

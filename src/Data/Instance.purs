@@ -4,7 +4,7 @@ import Prelude
 
 import Budget.Data.Common (Currency, dateFromString, dateToString)
 import Budget.Data.Template (TemplateId(..))
-import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, fail, jsonEmptyObject, jsonNull, (.:))
+import Data.Argonaut (class DecodeJson, class EncodeJson, Json, decodeJson, encodeJson, fail, jsonEmptyObject, (.:))
 import Data.Argonaut.Encode.Combinators ((:=), (~>))
 import Data.Date (Date)
 import Data.Either (Either)
