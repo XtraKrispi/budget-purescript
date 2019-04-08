@@ -7,7 +7,7 @@ import Budget.Capability.Now (class Now, nowDate)
 import Budget.Capability.Resource.Instance (class ManageInstance, createInstance, getInstances)
 import Budget.Capability.SendNotification (class SendNotification, sendErrorNotification)
 import Budget.Component.HTML.Utils (actionIconButton, formatCurrency)
-import Budget.Data.Common (Currency(..), EndDate(..), conversionDateFormat, unCurrency, unEndDate)
+import Budget.Data.Common (Currency(..), EndDate(..), conversionDateFormat, unEndDate)
 import Budget.Data.Instance (Instance, InstanceType(..))
 import Budget.Page.Admin (dateFormat)
 import DOM.HTML.Indexed.InputType (InputType(..))
@@ -30,16 +30,21 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties (InputType(..), checked, class_, classes, name, type_, value, readOnly) as HA
 import Halogen.Themes.Bootstrap4 as Bootstrap
-import Halogen.Themes.Bootstrap4 as Bootstrap
-import Halogen.Themes.Bootstrap4 as Bootstrap
 import Network.RemoteData (RemoteData(..), fromEither)
 
 type State = 
   { instances :: RemoteData String (Array Instance)
   , endDate :: Maybe EndDate
   , currentFilter :: Filter
-  , scratchAmount :: Currency
+  , scratchAmount :: ScratchAmount
   }
+
+data ScratchAmount = ScratchAmount Currency String
+
+derive instance genericScratchAmount :: Generic ScratchAmount _
+
+instance showScratchAmount :: Show ScratchAmount where
+  show = genericShow
 
 data Filter = NotActionedFilter | AllFilter | ActionedFilter | CompletedFilter | SkippedFilter 
 
@@ -81,7 +86,7 @@ component =
   initialState _ = { instances: NotAsked
                    , endDate: Nothing
                    , currentFilter: NotActionedFilter 
-                   , scratchAmount: Currency 0.0
+                   , scratchAmount: ScratchAmount (Currency 0.0) ""
                    }      
 
   eval :: Query ~> H.ComponentDSL State Query Void m
@@ -127,7 +132,9 @@ component =
       pure a
 
     ScratchAmountChanged s a -> do
-      maybe (pure unit) (\amt' -> H.modify_ _{ scratchAmount = Currency amt' }) (fromString s)
+      ScratchAmount c raw <- _.scratchAmount <$> get
+      let modifiedScratch = ScratchAmount (fromMaybe (Currency 0.0) (Currency <$> fromString s)) s
+      H.modify_ _{ scratchAmount = modifiedScratch }
       pure a
 
 defaultEndDate :: forall m. Now m => m EndDate
@@ -144,7 +151,6 @@ render s =
     [ renderInstances s ]
   , HH.div [ HA.class_ Bootstrap.col ] 
     [ scratchArea s ] 
-  , HH.div [] [ HH.text $ show s]
   ]
 
 renderInstances :: State -> H.ComponentHTML Query
@@ -219,16 +225,16 @@ renderInstance i =
     ]
   ]
 
-scratchArea :: forall r. { scratchAmount :: Currency, instances :: RemoteData String (Array Instance) | r } -> H.ComponentHTML Query
+scratchArea :: forall r. { scratchAmount :: ScratchAmount, instances :: RemoteData String (Array Instance) | r } -> H.ComponentHTML Query
 scratchArea { scratchAmount, instances } = 
-  case instances of
-    Success i -> 
+  case scratchAmount, instances of
+    ScratchAmount c s, Success i -> 
       HH.div_ 
       [ totalRow i
-      , userAmountRow  
-      , remainingRow 
+      , userAmountRow s   
+      , remainingRow i c
       ]                      
-    _         -> HH.div [] 
+    _, _         -> HH.div [] 
                  [ HH.div [ HA.class_ Bootstrap.formGroup ] 
                    [ HH.label_ [ HH.text "Total"]
                    , HH.input [ HA.class_ Bootstrap.formControl ]
@@ -247,27 +253,32 @@ scratchArea { scratchAmount, instances } =
             [ HH.text "Total"]
           , HH.input [ HA.readOnly true
                      , HA.classes [ Bootstrap.formControl
-                                  , Bootstrap.colSm4 ]
+                                  , Bootstrap.colSm4
+                                  , Bootstrap.textRight ]
                      , HA.value (formatCurrency $ total $ unactioned i)]]
-    userAmountRow =
+    userAmountRow raw =
       row [ HH.label [HA.class_ Bootstrap.colSm3 ] 
               [ HH.text "In Account"]
           , HH.div [ HA.classes [ Bootstrap.inputGroup
                                 , Bootstrap.mb2
                                 , Bootstrap.mr2
+                                , Bootstrap.p0
                                 , Bootstrap.colSm4 ]]
             [ HH.div [ HA.class_ Bootstrap.inputGroupPrepend ] 
               [ HH.div [ HA.class_ Bootstrap.inputGroupText ]
                 [ HH.text "$" ]]
-            , HH.input [ HA.type_ InputNumber
-                       , HA.value (show $ unCurrency scratchAmount)
-                       , HA.classes [ Bootstrap.formControl ]
+            , HH.input [ HA.type_ InputText
+                       , HA.value raw
+                       , HA.classes [ Bootstrap.formControl, Bootstrap.textRight ]
                        , HE.onValueInput (HE.input ScratchAmountChanged)]]]
-    remainingRow = 
+    remainingRow i amt = 
       row [ HH.label [HA.class_ Bootstrap.colSm3 ] 
             [ HH.text "Left Over"] 
           , HH.input [ HA.readOnly true
                      , HA.classes [ Bootstrap.formControl
-                                  , Bootstrap.colSm4 ]]]
+                                  , Bootstrap.colSm4
+                                  , Bootstrap.textRight]
+                     , HA.value (formatCurrency $ (total (unactioned i) - amt))]
+          ]
 
       

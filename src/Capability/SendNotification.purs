@@ -23,31 +23,31 @@ data NotificationLevel = Info | Warning | Error | Success
 
 data Notification = Notification String NotificationLevel
 
-mkNotification :: forall a. Show a => NotificationLevel -> a -> Notification
-mkNotification level msg = Notification (show msg) level
+mkNotification :: NotificationLevel -> String -> Notification
+mkNotification level msg = Notification msg level
 
-mkInfo :: forall a. Show a => a -> Notification
-mkInfo = mkNotification Info <<< show
+mkInfo :: String -> Notification
+mkInfo = mkNotification Info
 
-mkWarning :: forall a. Show a => a -> Notification
-mkWarning = mkNotification Warning <<< show
+mkWarning :: String -> Notification
+mkWarning = mkNotification Warning
 
-mkError :: forall a. Show a => a -> Notification
-mkError = mkNotification Error <<< show
+mkError :: String -> Notification
+mkError = mkNotification Error
 
-mkSuccess :: forall a. Show a => a -> Notification
-mkSuccess = mkNotification Success <<< show
+mkSuccess :: String -> Notification
+mkSuccess = mkNotification Success
 
-sendInfoNotification :: forall a m. SendNotification m => Show a => a -> m Unit
+sendInfoNotification :: forall m. SendNotification m => String -> m Unit
 sendInfoNotification = sendNotification <<< mkInfo
 
-sendWarningNotification :: forall a m. SendNotification m => Show a => a -> m Unit
+sendWarningNotification :: forall m. SendNotification m => String -> m Unit
 sendWarningNotification = sendNotification <<< mkWarning
 
-sendErrorNotification :: forall a m. SendNotification m => Show a => a -> m Unit
+sendErrorNotification :: forall m. SendNotification m => String -> m Unit
 sendErrorNotification = sendNotification <<< mkError
 
-sendSuccessNotification :: forall a m. SendNotification m => Show a => a -> m Unit
+sendSuccessNotification :: forall m. SendNotification m => String -> m Unit
 sendSuccessNotification = sendNotification <<< mkSuccess
 
 instance sendNotificationHalogenM :: SendNotification m => SendNotification (HalogenM s f g p o m) where
