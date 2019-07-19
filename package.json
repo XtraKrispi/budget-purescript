@@ -12,7 +12,8 @@
     "build-dev": "pulp build",
     "watch-dev": "pulp -w build",
     "build-serve": "pulp build --to dist/app.js && parcel build assets/index.html && http-server dist",
-    "watch-serve": "pulp -w --then \"parcel build assets/index.html && http-server dist\" build --to dist/app.js"
+    "watch-serve": "pulp -w --then \"parcel build assets/index.html && http-server dist\" build --to dist/app.js",
+    "watch": "parcel assets/index.html"
   },
   "author": "",
   "license": "ISC",
