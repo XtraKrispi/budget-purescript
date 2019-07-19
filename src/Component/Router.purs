@@ -10,16 +10,15 @@ import Budget.Capability.Resource.Template (class ManageTemplate)
 import Budget.Capability.SendNotification (class SendNotification)
 import Budget.Component.HTML.Navbar as Navbar
 import Budget.Component.HTML.PageHeader (pageHeader)
+import Budget.Component.HTML.Utils (OpaqueSlot)
 import Budget.Data.Route (Route(..))
 import Budget.Page.Admin as Admin
 import Budget.Page.Dashboard as Dashboard
-import Data.Either.Nested (Either2)
-import Data.Functor.Coproduct.Nested (Coproduct2)
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
-import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HA
 import Halogen.Themes.Bootstrap4 as Bootstrap
@@ -28,14 +27,20 @@ type State = { route :: Route }
 
 data Query a = Navigate Route a
 
+data Action = EvalQuery (Query Unit)
+
 type Input = Maybe Route
 
-type ChildQuery = Coproduct2 Dashboard.Query Admin.Query
+type ChildSlots =
+  ( dashboardSlot :: OpaqueSlot Unit
+  , adminSlot :: OpaqueSlot Unit
+  )
 
-type ChildSlot = Either2 Unit Unit
+_dashboardSlot = SProxy :: SProxy "dashboardSlot"
+_adminSlot = SProxy :: SProxy "adminSlot"
 
 component
-  :: forall m
+  :: forall o m
    . MonadAff m
   => Now m
   => LogMessages m
@@ -43,30 +48,32 @@ component
   => ManageTemplate m
   => SendNotification m
   => ManageInstance m
-  => H.Component HH.HTML Query Input Void m
+  => H.Component HH.HTML Query Input o m
 component = 
-  H.parentComponent
+  H.mkComponent
     { initialState: \initialRoute -> { route: fromMaybe Dashboard initialRoute }
     , render
-    , eval
-    , receiver: const Nothing
+    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction, handleQuery = handleQuery }
     }
   where
   
-  eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void m
-  eval (Navigate dest a) = do
+  handleQuery :: forall a. Query a -> H.HalogenM State Action ChildSlots o m (Maybe a)
+  handleQuery (Navigate dest a) = do
     { route } <- H.get
     when (route /= dest) do
       H.modify_ _ {route = dest}
-    pure a
+    pure (Just a)
 
-  render :: State -> H.ParentHTML Query ChildQuery ChildSlot m
+  handleAction :: Action -> H.HalogenM State Action ChildSlots o m Unit
+  handleAction (EvalQuery q) = void $ handleQuery q
+
+  render :: State -> HH.ComponentHTML Action ChildSlots m
   render { route } =   
     let Tuple pageContent pageTitle = case route of
           Dashboard ->
-            Tuple (HH.slot' CP.cp1 unit Dashboard.component unit absurd) "Home"
+            Tuple (HH.slot _dashboardSlot unit Dashboard.component unit absurd) "Home"
           Admin ->
-            Tuple (HH.slot' CP.cp2 unit Admin.component unit absurd) "Admin"
+            Tuple (HH.slot _adminSlot unit Admin.component unit absurd) "Admin"
     in HH.div_ [ Navbar.navbar route               
                , HH.div [ HA.class_ Bootstrap.container ] 
                         [ pageHeader pageTitle

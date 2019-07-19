@@ -14,7 +14,7 @@ class Monad m <= ManageInstance m where
   createInstance :: Instance -> m (Either String Unit)
   deleteInstance :: TemplateId -> Date -> m (Either String Unit)
 
-instance manageInstanceHalogenM :: ManageInstance m => ManageInstance (HalogenM s f g p o m) where
+instance manageInstanceHalogenM :: ManageInstance m => ManageInstance (HalogenM state action slots query m) where
   getInstances = lift <<< getInstances
   createInstance = lift <<< createInstance
   deleteInstance tId = lift <<< deleteInstance tId

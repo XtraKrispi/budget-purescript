@@ -13,7 +13,7 @@ class Monad m <= ManageTemplate m where
   updateTemplate :: forall t. TemplateId -> Template t -> m (Either String Unit)
   deleteTemplate :: TemplateId -> m (Either String Unit)
 
-instance manageTemplateHalogenM :: ManageTemplate m => ManageTemplate (HalogenM s f g p o m) where
+instance manageTemplateHalogenM :: ManageTemplate m => ManageTemplate (HalogenM state action slots query m) where
   getTemplate      = lift <<< getTemplate
   getTemplates     = lift getTemplates
   createTemplate   = lift <<< createTemplate

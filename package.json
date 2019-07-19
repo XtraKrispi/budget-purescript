@@ -7,21 +7,17 @@
     "test": "test"
   },
   "scripts": {
-    "postinstall": "psc-package install",
-    "build": "pulp build --to dist/app.js && parcel build assets/index.html",
-    "build-dev": "pulp build",
-    "watch-dev": "pulp -w build",
-    "build-serve": "pulp build --to dist/app.js && parcel build assets/index.html && http-server dist",
-    "watch-serve": "pulp -w --then \"parcel build assets/index.html && http-server dist\" build --to dist/app.js",
-    "watch": "parcel assets/index.html"
+    "postinstall": "spago install",
+    "build": "spago build",
+    "watch": "parcel assets/index.html",
+    "spago": "spago"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "parcel-bundler": "^1.11.0",
-    "psc-package": "^3.0.1",
-    "pulp": "^12.3.1",
-    "purescript": "^0.12.3"
+    "purescript": "^0.13.2",
+    "spago": "^0.8.5"
   },
   "dependencies": {
     "http-server": "^0.11.1"

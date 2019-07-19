@@ -50,5 +50,5 @@ sendErrorNotification = sendNotification <<< mkError
 sendSuccessNotification :: forall m. SendNotification m => String -> m Unit
 sendSuccessNotification = sendNotification <<< mkSuccess
 
-instance sendNotificationHalogenM :: SendNotification m => SendNotification (HalogenM s f g p o m) where
+instance sendNotificationHalogenM :: SendNotification m => SendNotification (HalogenM state action slots query m) where
   sendNotification = lift <<< sendNotification

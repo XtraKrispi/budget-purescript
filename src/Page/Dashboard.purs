@@ -54,88 +54,78 @@ derive instance genericFilter :: Generic Filter _
 instance showFilter :: Show Filter where
   show = genericShow
 
-data Query a = 
-    Initialize a
-  | LoadInstances EndDate a
-  | PayInstance Instance a 
-  | SkipInstance Instance a
-  | ApplyFilter Filter a
-  | EndDateChanged String a
-  | ScratchAmountChanged String a
+data Action = 
+    Initialize
+  | LoadInstances EndDate
+  | PayInstance Instance 
+  | SkipInstance Instance
+  | ApplyFilter Filter
+  | EndDateChanged String
+  | ScratchAmountChanged String
 
 
 component
-  :: forall m
+  :: forall q i o m
    . MonadAff m
   => Navigate m
   => ManageInstance m
   => SendNotification m
   => Now m
-  => H.Component HH.HTML Query Unit Void m
+  => H.Component HH.HTML q i o m
 component = 
-  H.lifecycleComponent
+  H.mkComponent
     { initialState
     , render
-    , eval
-    , receiver: const Nothing
-    , initializer: Just $ H.action Initialize 
-    , finalizer: Nothing
+    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction, initialize = Just Initialize }
     }
   where
-  initialState :: Unit -> State
+  initialState :: i -> State
   initialState _ = { instances: NotAsked
                    , endDate: Nothing
                    , currentFilter: NotActionedFilter 
                    , scratchAmount: ScratchAmount (Currency 0.0) ""
                    }      
 
-  eval :: Query ~> H.ComponentDSL State Query Void m
-  eval = case _ of
-    Initialize a -> do
+  handleAction :: Action -> H.HalogenM State Action () o m Unit
+  handleAction = case _ of
+    Initialize -> do
       endDate <- defaultEndDate
-      void $ H.fork $ eval $ LoadInstances endDate a
-      pure a
+      void $ H.fork $ handleAction $ LoadInstances endDate
       
-    LoadInstances eDate a -> do
+    LoadInstances eDate -> do
       H.modify_ _{ instances = Loading, endDate = Just eDate }
       instances <- fromEither <$> getInstances eDate
       H.modify_ _{ instances = instances }
-      pure a
 
-    PayInstance i a -> do      
+    PayInstance i -> do      
       { instances } <- get
       let updatedInstance = i{instanceType = Completed}
       createInstance updatedInstance >>=
         either (\err -> sendErrorNotification "There was a problem with the operation. Please try again.")
                (\_   -> 
                 H.modify_ _{ instances = map (\i' -> if i == i' then updatedInstance else i')  <$> instances }
-               )      
-      pure a
+               )
 
-    SkipInstance i a -> do
+    SkipInstance i -> do
       { instances } <- get
       let updatedInstance = i{instanceType = Skipped}
       createInstance updatedInstance >>=
         either (\err -> sendErrorNotification "There was a problem with the operation. Please try again.")
                (\_   -> 
                 H.modify_ _{ instances = map (\i' -> if i == i' then updatedInstance else i')  <$> instances }
-               )      
-      pure a
+               )
 
-    ApplyFilter f a -> do
+    ApplyFilter f -> do
       H.modify_ _{ currentFilter = f}
-      pure a
 
-    EndDateChanged s a -> do
+    EndDateChanged s -> do
       newEndDate <- maybe defaultEndDate pure (de s)
-      void $ H.fork $ eval $ LoadInstances newEndDate a
-      pure a
+      void $ H.fork $ handleAction $ LoadInstances newEndDate
 
-    ScratchAmountChanged s a -> do
+    ScratchAmountChanged s -> do
       ScratchAmount c raw <- _.scratchAmount <$> get
       let modifiedScratch = ScratchAmount (fromMaybe (Currency 0.0) (Currency <$> fromString s)) s
       H.modify_ _{ scratchAmount = modifiedScratch }
-      pure a
 
 defaultEndDate :: forall m. Now m => m EndDate
 defaultEndDate = do
@@ -144,7 +134,7 @@ defaultEndDate = do
   pure adjusted
 
 
-render :: State -> H.ComponentHTML Query
+render :: forall m. State -> HH.ComponentHTML Action () m
 render s = 
   HH.div [ HA.class_ Bootstrap.row ] 
   [ HH.div [ HA.class_ Bootstrap.col ] 
@@ -153,7 +143,7 @@ render s =
     [ scratchArea s ] 
   ]
 
-renderInstances :: State -> H.ComponentHTML Query
+renderInstances :: forall m. State -> H.ComponentHTML Action () m
 renderInstances { instances, endDate, currentFilter } =
   case instances of
     NotAsked -> HH.div [] [ HH.text "No data loaded." ]
@@ -166,7 +156,7 @@ renderInstances { instances, endDate, currentFilter } =
         , HH.input [ HA.type_ HA.InputDate
                    , HA.classes [ Bootstrap.formControl ] 
                    , HA.value $ fromMaybe "" $ ed <$> endDate
-                   , HE.onValueInput (HE.input EndDateChanged)
+                   , HE.onValueInput (Just <<< EndDateChanged)
                    ]
         ]    
       , HH.div [ HA.classes [ Bootstrap.btnGroup, Bootstrap.btnGroupToggle, Bootstrap.mb2 ]] 
@@ -191,7 +181,7 @@ renderInstances { instances, endDate, currentFilter } =
           [ HH.input [ HA.type_ InputRadio
                      , HA.name "filters"
                      , HA.checked active
-                     , HE.onChecked (HE.input_ $ ApplyFilter filter)] 
+                     , HE.onChecked (const <<< Just $ ApplyFilter filter)] 
           , HH.text text
           ] 
           where active = currentFilter == filter
@@ -205,7 +195,7 @@ de = hush <<< ((<$>) (EndDate <<< date)) <<< unformat conversionDateFormat
 prettyDate :: Date -> String
 prettyDate = format dateFormat <<< toDateTime <<< fromDate
 
-renderInstance :: Instance -> H.ComponentHTML Query
+renderInstance :: forall m. Instance -> H.ComponentHTML Action () m
 renderInstance i =
   HH.div [ HA.classes [ Bootstrap.card, Bootstrap.mb5, Bootstrap.bgLight ] ] 
   [ HH.div [ HA.class_ Bootstrap.cardHeader ] 
@@ -225,7 +215,7 @@ renderInstance i =
     ]
   ]
 
-scratchArea :: forall r. { scratchAmount :: ScratchAmount, instances :: RemoteData String (Array Instance) | r } -> H.ComponentHTML Query
+scratchArea :: forall r m. { scratchAmount :: ScratchAmount, instances :: RemoteData String (Array Instance) | r }  -> H.ComponentHTML Action () m
 scratchArea { scratchAmount, instances } = 
   case scratchAmount, instances of
     ScratchAmount c s, Success i -> 
@@ -270,7 +260,7 @@ scratchArea { scratchAmount, instances } =
             , HH.input [ HA.type_ InputText
                        , HA.value raw
                        , HA.classes [ Bootstrap.formControl, Bootstrap.textRight ]
-                       , HE.onValueInput (HE.input ScratchAmountChanged)]]]
+                       , HE.onValueInput (Just <<< ScratchAmountChanged)]]]
     remainingRow i amt = 
       row [ HH.label [HA.class_ Bootstrap.colSm3 ] 
             [ HH.text "Left Over"] 

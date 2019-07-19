@@ -11,7 +11,7 @@ import Halogen (HalogenM, lift)
 class Monad m <= LogMessages m where
   logMessage :: Log -> m Unit
 
-instance logMessagesHalogenM :: LogMessages m => LogMessages (HalogenM s f g p o m) where
+instance logMessagesHalogenM :: LogMessages m => LogMessages (HalogenM state action slots query m) where
   logMessage = lift <<< logMessage
   
 log :: forall m. LogMessages m => Now m => LogReason -> String -> m Unit

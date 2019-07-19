@@ -45,20 +45,20 @@ type State = { templates    :: RemoteData String (Array TemplateWithKey)
              , newTemplate  :: Template ()
              }
 
-data Query a = Initialize a
-             | LoadTemplates a
-             | Sort SortSpec a 
-             | Edit TemplateWithKey a
-             | ModifyDescription String a
-             | ModifyAmount String a
-             | CancelEditing a  
-             | CommitEditing a
-             | Delete TemplateWithKey a  
-             | ModifyNewItemDescription String a  
-             | ModifyNewItemAmount String a   
-             | ModifyNewItemStartDate String a
-             | ModifyNewItemFrequency String a     
-             | AddNewItem a       
+data Action =  Initialize
+             | LoadTemplates
+             | Sort SortSpec 
+             | Edit TemplateWithKey
+             | ModifyDescription String
+             | ModifyAmount String
+             | CancelEditing  
+             | CommitEditing
+             | Delete TemplateWithKey  
+             | ModifyNewItemDescription String  
+             | ModifyNewItemAmount String   
+             | ModifyNewItemStartDate String
+             | ModifyNewItemFrequency String     
+             | AddNewItem       
 
 data SortDirection = Asc | Desc
 derive instance eqSortDirection :: Eq SortDirection
@@ -80,75 +80,65 @@ instance showSortSpec :: Show SortSpec where
   show = genericShow
 
 component
-  :: forall m
+  :: forall m q i o
    . MonadAff m
   => Navigate m
   => ManageTemplate m
   => LogMessages m
   => Now m
   => SendNotification m
-  => H.Component HH.HTML Query Unit Void m
+  => H.Component HH.HTML q i o m
 component = 
-  H.lifecycleComponent 
+  H.mkComponent 
     { initialState
     , render
-    , eval
-    , receiver: const Nothing
-    , initializer: Just $ H.action Initialize 
-    , finalizer: Nothing
+    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction, initialize = Just Initialize}
     }
   where
-  initialState :: Unit -> State
+  initialState :: i -> State
   initialState _ = { templates: NotAsked
                    , sortSpec: UnSorted
                    , editing: Nothing
                    , newTemplate: initialNewTemplate (makeDate 1900 January 1)
                    }
 
-  eval :: Query ~> H.ComponentDSL State Query Void m
-  eval = case _ of
-    Initialize a -> do
-      void $ H.fork $ eval $ LoadTemplates a
+  handleAction :: Action -> H.HalogenM State Action () o m Unit
+  handleAction = case _ of
+    Initialize -> do
+      void $ H.fork $ handleAction $ LoadTemplates
       { newTemplate } <- get
       today <- nowDate
       H.modify_ _{ newTemplate = newTemplate { startDate = StartDate today }}
-      pure a
 
-    LoadTemplates a -> do
+    LoadTemplates -> do
       H.modify_ _{ templates = Loading }
       templates <- getTemplates
       H.modify_ _{ templates = fromEither templates }
-      pure a
     
-    Sort sorting a -> do
+    Sort sorting -> do
       H.modify_ _{ sortSpec = sorting }
-      pure a
 
-    Edit template a -> do
+    Edit template -> do
       H.modify_ _{ editing = Just template }
-      pure a
     
-    ModifyDescription d a -> do
+    ModifyDescription d -> do
       { editing } <- get
       case editing of
-        Nothing -> pure a
+        Nothing -> pure unit
         Just editing' -> do
           H.modify_ _{ editing = Just $ editing' { description = d } }
-          pure a
 
-    ModifyAmount amt a -> do
+    ModifyAmount amt -> do
       { editing } <- get
       case editing, fromString amt of
         Just editing', Just amt' -> do
           H.modify_ _{ editing = Just $ editing' { amount = Currency amt' } }
-          pure a
-        _, _ -> pure a
+        _, _ -> pure unit
 
-    CancelEditing a -> do
+    CancelEditing -> do
       H.modify_ _{ editing = Nothing }
-      pure a
 
-    CommitEditing a -> do
+    CommitEditing -> do
       { editing, templates } <- get
       case editing, templates of
         Just editing', Success templates' -> do
@@ -156,68 +146,78 @@ component =
           either 
             (\err -> do
               N.sendErrorNotification "There was an issue saving the template, please try again."
-              logError $ "Error saving template: " <> err
-              pure a) 
+              logError $ "Error saving template: " <> err) 
             (\_ -> do
               let nt = (\t -> if t.templateId == editing'.templateId then editing' else t) <$> templates'
               H.modify_ _ { templates = Success nt, editing = Nothing }
-              N.sendSuccessNotification "The template was updated successfully."
-              pure a) res
-        _, _ -> pure a
-    Delete t a -> do
+              N.sendSuccessNotification "The template was updated successfully.") res
+        _, _ -> pure unit
+    Delete t -> do
       toDelete <- liftEffect $ confirm "Are you sure you want to delete this template?"
       when toDelete $ do
         deleteTemplate t.templateId >>=      
-        either 
-            (\err -> do
-              N.sendErrorNotification "There was an issue deleting the template, please try again."
-              logError $ "Error deleting template: " <> err) 
-            (\_ -> do
-              { templates } <- get
-              H.modify_ _{ templates = filter ((/=) t) <$> templates }
-              N.sendSuccessNotification "The template was deleted successfully.")
-      pure a
+          either 
+              (\err -> do
+                N.sendErrorNotification "There was an issue deleting the template, please try again."
+                logError $ "Error deleting template: " <> err) 
+              (\_ -> do
+                { templates } <- get
+                H.modify_ _{ templates = filter ((/=) t) <$> templates }
+                N.sendSuccessNotification "The template was deleted successfully.")
     
-    ModifyNewItemDescription d a -> do
+    ModifyNewItemDescription d -> do
       { newTemplate } <- get
       H.modify_ _{ newTemplate = newTemplate { description = d }}
-      pure a
 
-    ModifyNewItemAmount amt a -> do
+    ModifyNewItemAmount amt -> do
       { newTemplate } <- get
       maybe (pure unit) (\amt' -> H.modify_ _{ newTemplate = newTemplate { amount = Currency amt' }}) (fromString amt)
-      pure a
 
-    ModifyNewItemStartDate dt a -> do
+    ModifyNewItemStartDate dt -> do
       { newTemplate } <- get
       maybe (pure unit) (\v -> H.modify_ _{ newTemplate = newTemplate { startDate = v }}) $ ds dt
-      pure a
 
-    ModifyNewItemFrequency f a -> do
+    ModifyNewItemFrequency f -> do
       { newTemplate } <- get
       maybe (pure unit) (\f' -> H.modify_ _{ newTemplate = newTemplate { frequency = f' }}) $ qref f
-      pure a
 
-    AddNewItem a -> do
+    AddNewItem -> do
       { newTemplate, templates } <- get
       case templates of
         Success ts -> do
           N.sendInfoNotification "Saving template..."
           createTemplate newTemplate >>=
-          either 
-            (\err -> do
-              N.sendErrorNotification "There was an issue creating the template, please try again."
-              logError $ "Error creating template: " <> err)
-            (\t -> do
-              today <- nowDate           
-              H.modify_ _{ newTemplate = initialNewTemplate today, templates = Success $ ts <> [t]  }
-              N.sendSuccessNotification "The template was created successfully.")
+            either 
+              (\err -> do
+                N.sendErrorNotification "There was an issue creating the template, please try again."
+                logError $ "Error creating template: " <> err)
+              (\t -> do
+                today <- nowDate           
+                H.modify_ _{ newTemplate = initialNewTemplate today, templates = Success $ ts <> [t]  }
+                N.sendSuccessNotification "The template was created successfully.")
         _ -> pure unit
-      pure a
 
-render :: State -> H.ComponentHTML Query
+--render :: State -> H.ComponentHTML Action
+render :: forall m. State -> HH.ComponentHTML Action () m
 render state = 
   let 
+    isEditing Nothing _ = false
+    isEditing (Just e) t = e.templateId == t.templateId 
+    changeSort col = 
+      let sortSpec = case state.sortSpec of
+                        Sorted col' dir -> if col == col' then
+                                            Sorted col (reverseDir dir)
+                                           else
+                                            Sorted col Asc
+                        _               -> Sorted col Asc
+      in HE.onClick (\x -> Just $ Sort sortSpec)
+    reverseDir Asc = Desc
+    reverseDir Desc = Asc
+    empty = HH.i [] []
+    chevron _ UnSorted = empty
+    chevron c (Sorted c' dir) 
+      | c == c' = HH.i [HA.class_ $ ClassName $ "fas fa-angle-" <> (if dir == Asc then "up" else "down") ] []
+      | otherwise = empty
     pageContent = 
       case state.templates of
         NotAsked   -> HH.div [] [ HH.text "Admin" ]
@@ -239,23 +239,6 @@ render state =
                      ]         
           ]
   in pageContent
-  where isEditing Nothing _ = false
-        isEditing (Just e) t = e.templateId == t.templateId 
-        changeSort col = 
-          let sortSpec = case state.sortSpec of
-                            Sorted col' dir -> if col == col' then
-                                                Sorted col (reverseDir dir)
-                                               else
-                                                Sorted col Asc
-                            _               -> Sorted col Asc
-          in  HE.onClick (HE.input_ (Sort sortSpec))
-        reverseDir Asc = Desc
-        reverseDir Desc = Asc
-        empty = HH.i [] []
-        chevron _ UnSorted = empty
-        chevron c (Sorted c' dir) 
-          | c == c' = HH.i [HA.class_ $ ClassName $ "fas fa-angle-" <> (if dir == Asc then "up" else "down") ] []
-          | otherwise = empty
 
 sort :: SortSpec -> Array TemplateWithKey -> Array TemplateWithKey
 sort UnSorted         = identity
@@ -271,7 +254,7 @@ sort (Sorted col dir) = sortBy order
             StartDateCol, Asc    -> compare t1.startDate   t2.startDate  
             StartDateCol, Desc   -> compare t2.startDate   t1.startDate  
 
-templateItem :: forall i. Boolean -> TemplateWithKey -> HH.HTML i (Query Unit)
+templateItem :: forall i. Boolean -> TemplateWithKey -> HH.HTML i Action
 templateItem false t = 
   HH.tr_  
   [ HH.td_ [ HH.text $ t.description ]
@@ -286,22 +269,26 @@ templateItem false t =
   ]
 templateItem true t = 
   HH.tr_  
-  [ HH.td_ [ HH.input [ HA.class_ Bootstrap.formControl
-                      , HA.value t.description
-                      , HE.onValueInput (HE.input ModifyDescription) ] ]
-  , HH.td [ HA.class_ Bootstrap.textRight ] 
-      [ HH.div [ HA.classes [ Bootstrap.inputGroup, Bootstrap.mb3 ]
+  [ HH.td_ 
+    [ HH.input [ HA.class_ Bootstrap.formControl
+               , HA.value t.description
+               , HE.onValueInput (Just <<< ModifyDescription )
                ]
-        [ HH.div [ HA.class_ Bootstrap.inputGroupPrepend ] 
-          [ HH.span [ HA.class_ Bootstrap.inputGroupText ] [ HH.text "$"]
-          ]
-        , HH.input [ HA.class_ Bootstrap.formControl
-                   , HA.type_ InputNumber
-                   , HA.value $ toString $ unCurrency t.amount 
-                   , HE.onValueInput (HE.input ModifyAmount)
-                   ] 
+    ]
+  , HH.td [ HA.class_ Bootstrap.textRight ] 
+    [ HH.div [ HA.classes [ Bootstrap.inputGroup, Bootstrap.mb3 ]
+             ]
+      [ HH.div [ HA.class_ Bootstrap.inputGroupPrepend ] 
+        [ HH.span [ HA.class_ Bootstrap.inputGroupText ] [ HH.text "$"]
         ]
+      , HH.input [ HA.class_ Bootstrap.formControl
+                 , HA.type_ InputNumber
+                 , HA.value $ toString $ unCurrency t.amount 
+                 , HE.onValueInput (Just <<< ModifyAmount) 
+                 ]
+                  
       ]
+    ]
   , HH.td_ [ HH.text $ freq t.frequency ]
   , HH.td_ [ HH.text $ prettySd t.startDate ]                         
   , HH.td_ [ HH.div [ HA.class_ (ClassName "actions") ] 
@@ -311,41 +298,46 @@ templateItem true t =
            ]
   ]
 
-newTemplateItem :: forall i. Template () -> HH.HTML i (Query Unit)
+newTemplateItem :: forall i. Template () -> HH.HTML i Action
 newTemplateItem t = 
   HH.tr_ 
-    [ HH. td_ [HH.input [ HA.class_ Bootstrap.formControl 
+    [ HH.td_ [HH.input [ HA.class_ Bootstrap.formControl 
                         , HA.placeholder "description"
                         , HA.value t.description
-                        , HE.onValueInput (HE.input ModifyNewItemDescription) ]                         
+                        , HE.onValueInput (Just <<< ModifyNewItemDescription) 
+                        ]                   
               ]
-    , HH. td [ HA.class_ Bootstrap.textRight ] 
-      [ HH.div [ HA.classes [ Bootstrap.inputGroup, Bootstrap.mb3 ]
-               ]
-        [ HH.div [ HA.class_ Bootstrap.inputGroupPrepend ] 
-          [ HH.span [ HA.class_ Bootstrap.inputGroupText ] [ HH.text "$"]
-          ]
-        , HH.input [ HA.class_ Bootstrap.formControl
-                   , HA.type_ InputNumber
-                   , HA.value $ toString $ unCurrency t.amount 
-                   , HE.onValueInput (HE.input ModifyNewItemAmount)
-                   ] 
+    , HH.td [ HA.class_ Bootstrap.textRight ] 
+        [ HH.div [ HA.classes [ Bootstrap.inputGroup, Bootstrap.mb3 ]
+                 ]
+            [ HH.div [ HA.class_ Bootstrap.inputGroupPrepend ] 
+                [ HH.span [ HA.class_ Bootstrap.inputGroupText ] [ HH.text "$"]
+                ]
+            , HH.input [ HA.class_ Bootstrap.formControl
+                       , HA.type_ InputNumber
+                       , HA.value $ toString $ unCurrency t.amount 
+                       , HE.onValueInput (Just <<< ModifyNewItemAmount)
+                       ] 
+            ]
         ]
-      ]
-    , HH. td_ [ HH.select [ HA.class_ Bootstrap.formControl, HE.onValueChange (HE.input ModifyNewItemFrequency) ] $
-                (\(Tuple k v) -> HH.option_ [HH.text v]) <$> M.toUnfoldable freqs
+    , HH.td_ [ HH.select [ HA.class_ Bootstrap.formControl
+                          , HE.onValueChange (Just <<< ModifyNewItemFrequency)
+                          ] $ (\(Tuple k v) -> HH.option_ [HH.text v]) <$> M.toUnfoldable freqs
               ]
-    , HH. td_ [ HH.input [ HA.class_ Bootstrap.formControl 
+    , HH.td_ [ HH.input [ HA.class_ Bootstrap.formControl 
                          , HA.placeholder "start date"
                          , HA.type_ InputDate
                          , HA.value $ sd t.startDate
-                         , HE.onValueInput (HE.input ModifyNewItemStartDate)
+                         , HE.onValueInput (Just <<< ModifyNewItemStartDate)
                          ] 
               ]
-    , HH. td_ [ HH.button [HE.onClick (HE.input (const AddNewItem))
-              , HA.classes [ Boostrap.btn, Bootstrap.btnPrimary ]
-              , HA.disabled (t.description == "")]               
-        [ HH.text "Add" ] ]
+    , HH.td_ 
+        [ HH.button [ HA.classes [ Boostrap.btn, Bootstrap.btnPrimary ]
+                    , HA.disabled (t.description == "")
+                    , HE.onClick (const $ Just AddNewItem)
+                    ]               
+            [ HH.text "Add" ] 
+        ]
     ]  
 
 freq :: Frequency -> String
